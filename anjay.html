@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tic Tac Toe AI Difficulty</title>
+
+<style>
+body{
+    margin:0;
+    font-family:Arial, sans-serif;
+    background: radial-gradient(circle at top,#0a1a3a,#020617);
+    color:white;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+}
+.container{text-align:center}
+
+.board{
+    position:relative;
+    display:grid;
+    grid-template-columns:repeat(3,110px);
+    gap:12px;
+    justify-content:center;
+    margin-top:15px;
+}
+
+.cell{
+    width:110px;height:110px;
+    background:linear-gradient(145deg,#020617,#0a1a3a);
+    border:1px solid #1e3a8a;
+    border-radius:14px;
+    font-size:46px;
+    display:flex;justify-content:center;align-items:center;
+    cursor:pointer;
+    transition:0.25s;
+    box-shadow:0 0 15px rgba(30,58,138,0.4);
+}
+.cell:hover{transform:scale(1.05);box-shadow:0 0 25px rgba(56,189,248,0.6)}
+.cell.x{color:#38bdf8}
+.cell.o{color:#60a5fa}
+
+.win-line{
+    position:absolute;
+    height:6px;
+    background:#38bdf8;
+    border-radius:10px;
+    box-shadow:0 0 20px #38bdf8;
+    transform-origin:left center;
+    transform: rotate(var(--angle)) scaleX(0);
+    animation:draw 0.4s forwards;
+}
+@keyframes draw{
+    to{transform: rotate(var(--angle)) scaleX(1);}
+}
+
+.status{margin-top:10px;color:#7dd3fc}
+.score{margin-top:5px;color:#93c5fd;font-size:14px}
+
+button,select{
+    margin-top:10px;
+    padding:10px 18px;
+    border:none;border-radius:10px;
+    background:#1e3a8a;color:white;font-weight:bold;
+    cursor:pointer;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+<h1>TIC TAC TOE</h1>
+
+<select id="mode">
+<option value="pvp">VS Player</option>
+<option value="ai">VS Computer</option>
+</select>
+
+<select id="difficulty">
+<option value="easy">Easy</option>
+<option value="normal">Normal</option>
+<option value="hard">Hard</option>
+<option value="impossible">Impossible</option>
+</select>
+
+<br>
+<button onclick="resetGame()">Reset</button>
+
+<div class="status" id="status">Giliran: X</div>
+<div class="score" id="score">X: 0 | O: 0</div>
+
+<div class="board" id="board"></div>
+</div>
+
+<audio id="clickSound" src="https://cdn.jsdelivr.net/gh/jshawl/AudioFX/sounds/button-16.mp3"></audio>
+<audio id="winSound" src="https://cdn.jsdelivr.net/gh/jshawl/AudioFX/sounds/powerUp8.mp3"></audio>
+
+<script>
+const board=document.getElementById("board");
+const statusText=document.getElementById("status");
+const scoreText=document.getElementById("score");
+const clickSound=document.getElementById("clickSound");
+const winSound=document.getElementById("winSound");
+const mode=document.getElementById("mode");
+const diff=document.getElementById("difficulty");
+
+let cells=[],current="X",gameActive=true,thinking=false,winLine=null;
+let score={X:0,O:0};
+
+const wins=[
+[0,1,2],[3,4,5],[6,7,8],
+[0,3,6],[1,4,7],[2,5,8],
+[0,4,8],[2,4,6]
+];
+
+function createBoard(){
+    board.innerHTML="";
+    cells=[];
+    if(winLine) winLine.remove();
+    for(let i=0;i<9;i++){
+        const cell=document.createElement("div");
+        cell.className="cell";
+        cell.onclick=()=>play(i);
+        board.appendChild(cell);
+        cells.push("");
+    }
+}
+createBoard();
+
+function play(i){
+    if(!gameActive||cells[i]||thinking) return;
+    place(i,current);
+    if(checkEnd()) return;
+    current=current==="X"?"O":"X";
+    statusText.textContent="Giliran: "+current;
+
+    if(mode.value==="ai"&&current==="O"){
+        thinking=true;
+        setTimeout(()=>{
+            aiMove();
+            thinking=false;
+        },350);
+    }
+}
+
+function place(i,p){
+    cells[i]=p;
+    const el=board.children[i];
+    el.textContent=p;
+    el.classList.add(p.toLowerCase());
+    clickSound.currentTime=0;
+    clickSound.play();
+}
+
+function aiMove(){
+    let move;
+
+    if(diff.value==="easy"){
+        move=randomMove();
+    }
+    else if(diff.value==="normal"){
+        move=Math.random()<0.5?bestMove():randomMove();
+    }
+    else if(diff.value==="hard"){
+        move=bestMove();
+    }
+    else{
+        move=minimaxMove();
+    }
+
+    place(move,"O");
+    if(checkEnd()) return;
+    current="X";
+    statusText.textContent="Giliran: X";
+}
+
+function randomMove(){
+    const empty=cells.map((v,i)=>v===""?i:null).filter(v=>v!==null);
+    return empty[Math.floor(Math.random()*empty.length)];
+}
+
+function bestMove(){
+    return findBest("O") ?? findBest("X") ?? randomMove();
+}
+
+function findBest(p){
+    for(const combo of wins){
+        const vals=combo.map(i=>cells[i]);
+        if(vals.filter(v=>v===p).length===2 && vals.includes("")){
+            return combo[vals.indexOf("")];
+        }
+    }
+    return null;
+}
+
+function minimaxMove(){
+    let bestScore=-Infinity,move;
+    for(let i=0;i<9;i++){
+        if(cells[i]===""){
+            cells[i]="O";
+            let score=minimax(cells,0,false);
+            cells[i]="";
+            if(score>bestScore){
+                bestScore=score;
+                move=i;
+            }
+        }
+    }
+    return move;
+}
+
+function minimax(boardState,depth,isMax){
+    let result=checkWinner(boardState);
+    if(result!==null){
+        const scores={O:1,X:-1,draw:0};
+        return scores[result];
+    }
+
+    if(isMax){
+        let best=-Infinity;
+        for(let i=0;i<9;i++){
+            if(boardState[i]===""){
+                boardState[i]="O";
+                best=Math.max(best,minimax(boardState,depth+1,false));
+                boardState[i]="";
+            }
+        }
+        return best;
+    }else{
+        let best=Infinity;
+        for(let i=0;i<9;i++){
+            if(boardState[i]===""){
+                boardState[i]="X";
+                best=Math.min(best,minimax(boardState,depth+1,true));
+                boardState[i]="";
+            }
+        }
+        return best;
+    }
+}
+
+function checkWinner(b){
+    for(const [a,b1,c] of wins){
+        if(b[a]&&b[a]===b[b1]&&b[a]===b[c]) return b[a];
+    }
+    if(!b.includes("")) return "draw";
+    return null;
+}
+
+function checkEnd(){
+    for(const combo of wins){
+        const [a,b,c]=combo;
+        if(cells[a]&&cells[a]===cells[b]&&cells[a]===cells[c]){
+            drawLine(combo);
+            statusText.textContent=cells[a]+" MENANG!";
+            score[cells[a]]++;
+            scoreText.textContent=`X: ${score.X} | O: ${score.O}`;
+            winSound.play();
+            gameActive=false;
+            return true;
+        }
+    }
+    if(!cells.includes("")){
+        statusText.textContent="SERI!";
+        gameActive=false;
+        return true;
+    }
+    return false;
+}
+
+function drawLine(combo){
+    const r1=board.children[combo[0]].getBoundingClientRect();
+    const r3=board.children[combo[2]].getBoundingClientRect();
+    const br=board.getBoundingClientRect();
+
+    const x1=r1.left+r1.width/2-br.left;
+    const y1=r1.top+r1.height/2-br.top;
+    const x3=r3.left+r3.width/2-br.left;
+    const y3=r3.top+r3.height/2-br.top;
+
+    const len=Math.hypot(x3-x1,y3-y1);
+    const ang=Math.atan2(y3-y1,x3-x1)*180/Math.PI;
+
+    const line=document.createElement("div");
+    line.className="win-line";
+    line.style.width=len+"px";
+    line.style.left=x1+"px";
+    line.style.top=y1+"px";
+    line.style.setProperty("--angle",ang+"deg");
+
+    board.appendChild(line);
+    winLine=line;
+}
+
+function resetGame(){
+    current="X";
+    gameActive=true;
+    statusText.textContent="Giliran: X";
+    createBoard();
+}
+</script>
+
+</body>
+</html>
